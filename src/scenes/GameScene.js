@@ -1,5 +1,5 @@
 import { GAME_CONFIG } from '../config/GameConfig';
-import { WEAPON_CONFIG } from '../config/WeaponConfig';
+import { PASSIVE_UPGRADES, WEAPON_CONFIG } from '../config/WeaponConfig';
 import Player from '../entities/Player';
 import Enemy from '../entities/Enemy';
 import ObjectPool from '../utils/ObjectPool';
@@ -11,6 +11,10 @@ import HolyWater from '../weapons/HolyWater';
 import CrossBoomerang from '../weapons/CrossBoomerang';
 import WhipChain from '../weapons/WhipChain';
 import FlamePillar from '../weapons/FlamePillar';
+import GarlicAura from '../weapons/GarlicAura';
+import BoneShield from '../weapons/BoneShield';
+import SilverDagger from '../weapons/SilverDagger';
+import ArcaneOrb from '../weapons/ArcaneOrb';
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -43,12 +47,73 @@ export default class GameScene extends Phaser.Scene {
     this.hud = new HUD(this);
     this.joystick = new VirtualJoystick(this);
 
-    this.weapons = [new HolyWater(this, this.player, WEAPON_CONFIG.holyWater)];
-    this.pendingWeapons = [
-      () => new CrossBoomerang(this, this.player, WEAPON_CONFIG.crossBoomerang),
-      () => new WhipChain(this, this.player, WEAPON_CONFIG.whipChain),
-      () => new FlamePillar(this, this.player, WEAPON_CONFIG.flamePillar),
+    this.weapons = [];
+    this.weaponState = new Map();
+    this.weaponCatalog = [
+      {
+        id: 'holyWater',
+        classRef: HolyWater,
+        config: WEAPON_CONFIG.holyWater,
+        iconColor: 0x7eb8ff,
+        description: 'Throw vials that leave damaging sanctified pools.',
+      },
+      {
+        id: 'crossBoomerang',
+        classRef: CrossBoomerang,
+        config: WEAPON_CONFIG.crossBoomerang,
+        iconColor: 0xffe680,
+        description: 'Launches a returning cross through enemy lines.',
+      },
+      {
+        id: 'whipChain',
+        classRef: WhipChain,
+        config: WEAPON_CONFIG.whipChain,
+        iconColor: 0xffffff,
+        description: 'Snaps a wide whip in your facing direction.',
+      },
+      {
+        id: 'flamePillar',
+        classRef: FlamePillar,
+        config: WEAPON_CONFIG.flamePillar,
+        iconColor: 0xff6b3d,
+        description: 'Calls down a burning pillar at enemy positions.',
+      },
+      {
+        id: 'garlicAura',
+        classRef: GarlicAura,
+        config: WEAPON_CONFIG.garlicAura,
+        iconColor: 0x67e36a,
+        description: 'A toxic aura ticks damage and pushes foes back.',
+      },
+      {
+        id: 'boneShield',
+        classRef: BoneShield,
+        config: WEAPON_CONFIG.boneShield,
+        iconColor: 0xf2f2f2,
+        description: 'Orbiting bone shards slice enemies on contact.',
+      },
+      {
+        id: 'silverDagger',
+        classRef: SilverDagger,
+        config: WEAPON_CONFIG.silverDagger,
+        iconColor: 0xb3b3b8,
+        description: 'Rain daggers from above in a cursed zone.',
+      },
+      {
+        id: 'arcaneOrb',
+        classRef: ArcaneOrb,
+        config: WEAPON_CONFIG.arcaneOrb,
+        iconColor: 0xa64dff,
+        description: 'Slow orb that phases through all enemies.',
+      },
     ];
+    this.passiveCatalog = [
+      { ...PASSIVE_UPGRADES.maxHealth, iconColor: 0xd74f5f },
+      { ...PASSIVE_UPGRADES.moveSpeed, iconColor: 0x4da5ff },
+      { ...PASSIVE_UPGRADES.pickupRadius, iconColor: 0x65f0ff },
+    ];
+
+    this.addWeapon('holyWater');
 
     this.kills = 0;
     this.elapsedSeconds = 0;
@@ -71,7 +136,7 @@ export default class GameScene extends Phaser.Scene {
     });
 
     this.events.on('xpchange', ({ level, xp, threshold }) => this.hud.updateXp(level, xp, threshold));
-    this.events.on('levelup', () => this.unlockNextWeapon());
+    this.events.on('levelup', () => this.hud.updateHealth(this.player.health, this.player.maxHealth));
 
     this.input.keyboard.on('keydown-ESC', () => {
       this.scene.pause();
@@ -83,7 +148,15 @@ export default class GameScene extends Phaser.Scene {
     if (!projectile.active || !enemy.active) return;
 
     const type = projectile.getData('weaponType');
-    if (type === 'holyWaterBottle' || type === 'holyWaterZone' || type === 'flamePillar') return;
+    if (
+      type === 'holyWaterBottle'
+      || type === 'holyWaterZone'
+      || type === 'flamePillar'
+      || type === 'garlicAuraVisual'
+      || type === 'boneShield'
+      || type === 'silverDagger'
+      || type === 'arcaneOrb'
+    ) return;
 
     const hitEnemies = projectile.getData('hitEnemies');
     if (hitEnemies?.has(enemy)) return;
@@ -111,10 +184,73 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-  unlockNextWeapon() {
-    const next = this.pendingWeapons.shift();
-    if (!next) return;
-    this.weapons.push(next());
+  getWeaponDefinition(id) {
+    return this.weaponCatalog.find((entry) => entry.id === id);
+  }
+
+  addWeapon(id) {
+    if (this.weaponState.has(id)) return;
+
+    const definition = this.getWeaponDefinition(id);
+    if (!definition) return;
+
+    const weapon = new definition.classRef(this, this.player, definition.config);
+    weapon.setLevel(1);
+    this.weapons.push(weapon);
+    this.weaponState.set(id, { level: 1, weapon });
+  }
+
+  getLevelUpChoices(count = 3) {
+    const weaponChoices = this.weaponCatalog
+      .filter((entry) => (this.weaponState.get(entry.id)?.level ?? 0) < 8)
+      .map((entry) => {
+        const level = this.weaponState.get(entry.id)?.level ?? 0;
+        return {
+          id: entry.id,
+          type: 'weapon',
+          name: entry.config.name,
+          description: entry.description,
+          level,
+          iconColor: entry.iconColor,
+        };
+      });
+
+    const passiveChoices = this.passiveCatalog.map((entry) => ({
+      id: entry.id,
+      type: 'passive',
+      name: entry.name,
+      description: entry.description,
+      level: 0,
+      iconColor: entry.iconColor,
+    }));
+
+    const pool = Phaser.Utils.Array.Shuffle([...weaponChoices, ...passiveChoices]);
+    return pool.slice(0, count);
+  }
+
+  applyLevelUpChoice(choice) {
+    if (!choice) return;
+
+    if (choice.type === 'weapon') {
+      const state = this.weaponState.get(choice.id);
+      if (!state) {
+        this.addWeapon(choice.id);
+      } else if (state.level < 8) {
+        state.level += 1;
+        state.weapon.setLevel(state.level);
+      }
+      return;
+    }
+
+    if (choice.id === 'maxHealth') {
+      this.player.maxHealth += 20;
+      this.player.health += 20;
+      this.hud.updateHealth(this.player.health, this.player.maxHealth);
+    } else if (choice.id === 'moveSpeed') {
+      this.player.speed *= 1.1;
+    } else if (choice.id === 'pickupRadius') {
+      this.xpManager.pickupRadius += 20;
+    }
   }
 
   handleEnemyDeath(enemy) {
