@@ -21,6 +21,7 @@ import SacredFlood from '../weapons/SacredFlood';
 import InfernoLash from '../weapons/InfernoLash';
 import PurificationNova from '../weapons/PurificationNova';
 import NecroStorm from '../weapons/NecroStorm';
+import VisualEffects from '../systems/VisualEffects';
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -32,6 +33,7 @@ export default class GameScene extends Phaser.Scene {
     this.drawBackgroundTiles();
 
     this.player = new Player(this, GAME_CONFIG.player.startX, GAME_CONFIG.player.startY);
+    this.vfx = new VisualEffects(this);
 
     this.cameras.main.setBounds(0, 0, GAME_CONFIG.world.width, GAME_CONFIG.world.height);
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
@@ -171,7 +173,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.physics.add.overlap(this.player, this.enemies, (_, enemy) => {
       const gotHit = this.player.takeDamage(enemy.damage);
-      if (gotHit) this.hud.updateHealth(this.player.health, this.player.maxHealth);
+      if (gotHit) this.events.emit('playerhit');
       if (this.player.isDead) this.endRun('defeat');
     });
 
@@ -180,6 +182,7 @@ export default class GameScene extends Phaser.Scene {
     });
 
     this.events.on('playerhit', () => {
+      this.vfx.onPlayerHit();
       this.hud.updateHealth(this.player.health, this.player.maxHealth);
       if (this.player.isDead) this.endRun('defeat');
     });
@@ -214,6 +217,8 @@ export default class GameScene extends Phaser.Scene {
     if (hitEnemies?.has(enemy)) return;
 
     enemy.takeDamage(projectile.getData('damage'));
+    this.vfx.playImpact(projectile.x, projectile.y);
+    this.sound.play('sfx_hit');
 
     if (hitEnemies) {
       hitEnemies.add(enemy);
@@ -337,6 +342,11 @@ export default class GameScene extends Phaser.Scene {
       evolution.requires.forEach((weaponId) => this.removeWeapon(weaponId));
       this.addWeapon(evolution.evolvedWeaponId);
       this.evolvedWeapons += 1;
+      this.sound.play('sfx_evolve');
+      const [weaponAId, weaponBId] = evolution.requires;
+      const colorA = this.getWeaponDefinition(weaponAId)?.iconColor ?? 0xffd67d;
+      const colorB = this.getWeaponDefinition(weaponBId)?.iconColor ?? 0xffffff;
+      this.vfx.playEvolution(this.player, colorA, colorB);
       this.cameras.main.flash(300, 255, 226, 120, false);
       this.updateEvolutionHud();
       return;
@@ -368,6 +378,8 @@ export default class GameScene extends Phaser.Scene {
   handleEnemyDeath(enemy) {
     this.kills += 1;
     this.hud.updateKills(this.kills);
+    this.vfx.playEnemyDeath(enemy.x, enemy.y, enemy.baseTint);
+    this.sound.play('sfx_death');
     this.xpManager.spawnGem(enemy.x, enemy.y, enemy.xpValue);
   }
 
@@ -407,7 +419,13 @@ export default class GameScene extends Phaser.Scene {
       for (let x = 0; x < GAME_CONFIG.world.width; x += tileSize) {
         const checker = ((x / tileSize) + (y / tileSize)) % palette.length;
         const baseColor = palette[checker];
-        const color = Math.random() < 0.08 ? accent : baseColor;
+        const varied = Phaser.Display.Color.ValueToColor(baseColor);
+        const delta = Phaser.Math.Between(-6, 6);
+        const color = Math.random() < 0.08 ? accent : Phaser.Display.Color.GetColor(
+          Phaser.Math.Clamp(varied.red + delta, 0, 255),
+          Phaser.Math.Clamp(varied.green + delta, 0, 255),
+          Phaser.Math.Clamp(varied.blue + delta, 0, 255),
+        );
 
         graphics.fillStyle(color, 1);
         graphics.fillRect(x, y, tileSize, tileSize);
@@ -419,8 +437,9 @@ export default class GameScene extends Phaser.Scene {
 
   update(time, delta) {
     this.elapsedSeconds += delta / 1000;
-    this.hud.updateTimer(this.elapsedSeconds);
+    this.hud.updateTimer(this.elapsedSeconds, this.bossManager.isBossIncoming(this.elapsedSeconds));
     this.player.update(delta);
+    this.player.updateTrail();
 
     if (this.elapsedSeconds >= GAME_CONFIG.victory.surviveSeconds) {
       this.endRun('victory');
@@ -445,7 +464,17 @@ export default class GameScene extends Phaser.Scene {
       weapon.update(time, delta);
     });
 
+    this.weaponProjectiles.children.iterate((projectile) => {
+      if (!projectile?.active) return;
+      const nextTrailAt = projectile.getData('nextTrailAt') ?? 0;
+      if (time >= nextTrailAt) {
+        projectile.setData('nextTrailAt', time + 70);
+        this.vfx.emitProjectileTrail(projectile);
+      }
+    });
+
     this.updateMovement(delta);
+    this.vfx.update(this.player, this.elapsedSeconds);
   }
 
   handleWeaponBossOverlaps() {

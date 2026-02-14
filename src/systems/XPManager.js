@@ -17,12 +17,28 @@ class XPGem extends Phaser.Physics.Arcade.Sprite {
   configure(x, y, value) {
     this.value = value;
     this.setPosition(x, y);
+    this.setScale(1);
     this.setActive(true).setVisible(true);
     this.body.enable = true;
+
+    if (this.pulseTween) this.pulseTween.stop();
+    this.pulseTween = this.scene.tweens.add({
+      targets: this,
+      scale: { from: 0.92, to: 1.08 },
+      duration: 700,
+      ease: 'Sine.InOut',
+      yoyo: true,
+      repeat: -1,
+    });
   }
 
   deactivate() {
     this.body.stop();
+    if (this.pulseTween) {
+      this.pulseTween.stop();
+      this.pulseTween = null;
+    }
+    this.setScale(1);
     this.setActive(false).setVisible(false);
     this.body.enable = false;
   }
@@ -96,6 +112,8 @@ export default class XPManager {
   collectGem(gem) {
     if (!gem.active) return;
 
+    this.scene.vfx?.playGemTrail(gem.x, gem.y, this.player);
+    this.scene.sound.play('sfx_pickup');
     this.addXp(gem.value);
     this.gemPool.release(gem);
   }
@@ -108,6 +126,8 @@ export default class XPManager {
       this.level += 1;
       this.threshold = this.getThresholdForLevel(this.level);
       this.scene.events.emit('levelup', this.level);
+      this.scene.sound.play('sfx_levelup');
+      this.scene.vfx?.playLevelUp(this.player);
       this.triggerLevelUp();
     }
 

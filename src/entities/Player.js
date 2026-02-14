@@ -24,6 +24,16 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.targetVelocity = new Phaser.Math.Vector2(0, 0);
     this.currentVelocity = new Phaser.Math.Vector2(0, 0);
     this.flashEvent = null;
+    this.afterimages = [];
+    this.nextAfterimageAt = 0;
+
+    for (let i = 0; i < 3; i += 1) {
+      const trail = scene.add.image(this.x, this.y, PLAYER_TEXTURE_KEY)
+        .setAlpha(0)
+        .setDepth(this.depth - 1)
+        .setBlendMode(Phaser.BlendModes.SCREEN);
+      this.afterimages.push(trail);
+    }
   }
 
   static ensureTexture(scene) {
@@ -59,6 +69,26 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.healthRegenPerSecond <= 0 || this.health >= this.maxHealth) return;
     const regenAmount = this.healthRegenPerSecond * (delta / 1000);
     this.health = Phaser.Math.Clamp(this.health + regenAmount, 0, this.maxHealth);
+  }
+
+  updateTrail() {
+    if (this.body.velocity.lengthSq() < 400 || this.scene.time.now < this.nextAfterimageAt) return;
+
+    this.nextAfterimageAt = this.scene.time.now + 50;
+    const trail = this.afterimages.shift();
+    trail
+      .setPosition(this.x, this.y)
+      .setDisplaySize(this.displayWidth, this.displayHeight)
+      .setTint(0xc2d8ff)
+      .setAlpha(0.18)
+      .setVisible(true);
+    this.scene.tweens.add({
+      targets: trail,
+      alpha: 0,
+      duration: 180,
+      onComplete: () => trail.setVisible(false).clearTint(),
+    });
+    this.afterimages.push(trail);
   }
 
   takeDamage(amount) {

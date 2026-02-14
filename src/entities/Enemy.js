@@ -23,6 +23,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.erraticSeed = Math.random() * Math.PI * 2;
 
     this.baseTint = 0xffffff;
+    this.shadow = scene.add.ellipse(x, y + 10, 18, 8, 0x000000, 0.3).setDepth(24);
     this.flashEvent = null;
     this.isDying = false;
     this.onDeathCallback = null;
@@ -57,6 +58,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.setAlpha(typeStats.alpha ?? 1);
     this.setScale(1);
     this.setActive(true).setVisible(true);
+    this.shadow.setVisible(true);
     this.body.enable = true;
     this.isDying = false;
   }
@@ -84,6 +86,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
 
     this.setVelocity(toTarget.x * this.speed, toTarget.y * this.speed);
+    this.shadow.setPosition(this.x, this.y + 10);
   }
 
   teleportNear(target) {
@@ -93,6 +96,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
       target.x + Math.cos(angle) * distance,
       target.y + Math.sin(angle) * distance,
     );
+    this.shadow.setPosition(this.x, this.y + 10);
   }
 
   takeDamage(amount) {
@@ -152,6 +156,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.clearTint();
     this.body.setCircle(9);
     this.setActive(false).setVisible(false);
+    this.shadow.setVisible(false);
     this.body.enable = false;
     this.isDying = false;
   }
