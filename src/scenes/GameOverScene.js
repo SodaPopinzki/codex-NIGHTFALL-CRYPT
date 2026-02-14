@@ -1,3 +1,5 @@
+import { recordRunStats } from '../systems/MetaProgression';
+
 export default class GameOverScene extends Phaser.Scene {
   constructor() {
     super('GameOverScene');
@@ -6,6 +8,11 @@ export default class GameOverScene extends Phaser.Scene {
   create(data) {
     const { width, height } = this.scale;
     const isVictory = data.mode === 'victory';
+    recordRunStats({
+      timeSurvived: data.time ?? 0,
+      kills: data.kills ?? 0,
+      weaponsEvolved: data.weaponsEvolved ?? 0,
+    });
 
     this.cameras.main.setBackgroundColor(isVictory ? '#0e1a10' : '#130914');
 
@@ -41,7 +48,17 @@ export default class GameOverScene extends Phaser.Scene {
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
     restart.on('pointerdown', () => {
-      this.scene.start('GameScene');
+      this.scene.start('GameScene', { hardMode: Boolean(data.hardMode) });
     });
+
+    const menu = this.add.text(width / 2, height * 0.88, 'Menu', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '26px',
+      color: '#efe5c4',
+      backgroundColor: '#2a1733',
+      padding: { x: 16, y: 8 },
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+    menu.on('pointerdown', () => this.scene.start('MenuScene'));
   }
 }

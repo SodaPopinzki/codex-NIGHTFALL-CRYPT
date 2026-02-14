@@ -22,10 +22,22 @@ import InfernoLash from '../weapons/InfernoLash';
 import PurificationNova from '../weapons/PurificationNova';
 import NecroStorm from '../weapons/NecroStorm';
 import VisualEffects from '../systems/VisualEffects';
+import {
+  discoverEvolution,
+  discoverWeapon,
+  getUnlockedBonuses,
+  loadMetaProgression,
+} from '../systems/MetaProgression';
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
     super('GameScene');
+  }
+
+  init(data) {
+    if (typeof data?.hardMode === 'boolean') {
+      this.registry.set('hardModeEnabled', data.hardMode);
+    }
   }
 
   create() {
@@ -57,6 +69,12 @@ export default class GameScene extends Phaser.Scene {
     });
     this.hud = new HUD(this);
     this.joystick = new VirtualJoystick(this);
+
+    this.meta = loadMetaProgression();
+    this.unlockedBonuses = getUnlockedBonuses(this.meta);
+    this.bonusIds = new Set(this.unlockedBonuses.map((bonus) => bonus.id));
+    this.damageMultiplier = this.bonusIds.has('firstBlood') ? 1.05 : 1;
+    this.enemyStatMultiplier = this.registry.get('hardModeEnabled') ? 1.5 : 1;
 
     this.weapons = [];
     this.weaponState = new Map();
@@ -163,6 +181,23 @@ export default class GameScene extends Phaser.Scene {
     this.bossesDefeated = 0;
     this.evolvedWeapons = 0;
 
+    if (this.bonusIds.has('survivor')) {
+      this.player.maxHealth += 10;
+      this.player.health += 10;
+    }
+    if (this.bonusIds.has('collector')) {
+      this.xpManager.pickupRadius *= 1.15;
+    }
+    if (this.bonusIds.has('alchemist')) {
+      const randomWeapon = Phaser.Utils.Array.GetRandom(this.weaponCatalog.filter((entry) => !entry.isEvolved));
+      if (randomWeapon && randomWeapon.id !== 'holyWater') this.addWeapon(randomWeapon.id, { level: 2 });
+      if (randomWeapon?.id === 'holyWater') {
+        const starter = this.weaponState.get('holyWater');
+        starter.level = 2;
+        starter.weapon.setLevel(2);
+      }
+    }
+
     this.hud.updateHealth(this.player.health, this.player.maxHealth);
     this.hud.updateXp(this.xpManager.level, this.xpManager.currentXp, this.xpManager.threshold);
     this.hud.updateKills(this.kills);
@@ -190,9 +225,30 @@ export default class GameScene extends Phaser.Scene {
     this.events.on('xpchange', ({ level, xp, threshold }) => this.hud.updateXp(level, xp, threshold));
     this.events.on('levelup', () => this.hud.updateHealth(this.player.health, this.player.maxHealth));
 
-    this.input.keyboard.on('keydown-ESC', () => {
-      this.scene.pause();
-      this.scene.launch('PauseScene');
+    this.input.keyboard.on('keydown-ESC', () => this.openPauseMenu());
+
+    this.pauseButton = this.add.text(this.scale.width - 18, 16, 'II', {
+      fontFamily: 'Georgia, serif',
+      fontSize: '26px',
+      color: '#f2dfc9',
+      backgroundColor: '#2a1733',
+      padding: { x: 8, y: 2 },
+    }).setOrigin(1, 0).setScrollFactor(0).setDepth(220).setInteractive({ useHandCursor: true });
+    this.pauseButton.on('pointerdown', () => this.openPauseMenu());
+  }
+
+  openPauseMenu() {
+    if (this.scene.isActive('PauseScene')) return;
+    const weapons = Array.from(this.weaponState.entries()).map(([id, state]) => ({
+      id,
+      name: this.getWeaponDefinition(id)?.config.name ?? id,
+      level: state.level,
+    }));
+    this.scene.pause();
+    this.scene.launch('PauseScene', {
+      weapons,
+      time: this.elapsedSeconds,
+      kills: this.kills,
     });
   }
 
@@ -251,10 +307,19 @@ export default class GameScene extends Phaser.Scene {
     const definition = this.getWeaponDefinition(id);
     if (!definition) return;
 
-    const weapon = new definition.classRef(this, this.player, definition.config);
+    const scaledConfig = { ...definition.config };
+    if (typeof scaledConfig.damage === 'number') scaledConfig.damage *= this.damageMultiplier;
+    if (typeof scaledConfig.trailDamage === 'number') scaledConfig.trailDamage *= this.damageMultiplier;
+    if (typeof scaledConfig.boltDamage === 'number') scaledConfig.boltDamage *= this.damageMultiplier;
+    const weapon = new definition.classRef(this, this.player, scaledConfig);
     weapon.setLevel(level);
     this.weapons.push(weapon);
     this.weaponState.set(id, { level, weapon, isEvolved: Boolean(definition.isEvolved) });
+    if (definition.isEvolved) {
+      discoverEvolution(id);
+    } else {
+      discoverWeapon(id);
+    }
   }
 
   removeWeapon(id) {
@@ -406,6 +471,7 @@ export default class GameScene extends Phaser.Scene {
       kills: this.kills,
       bossesDefeated: this.bossesDefeated,
       weaponsEvolved: this.evolvedWeapons,
+      hardMode: Boolean(this.registry.get('hardModeEnabled')),
     });
   }
 
