@@ -23,13 +23,17 @@ export default class GameScene extends Phaser.Scene {
     this.cameras.main.setDeadzone(50, 50);
 
     this.enemyPool = new ObjectPool(
-      () => new Enemy(this, -999, -999),
+      () => {
+        const enemy = new Enemy(this, -999, -999);
+        enemy.setCallbacks((deadEnemy) => this.handleEnemyDeath(deadEnemy), (deadEnemy) => this.enemyPool.release(deadEnemy));
+        return enemy;
+      },
       (enemy) => enemy.deactivate(),
     );
     this.enemies = this.physics.add.group({ runChildUpdate: false });
 
     this.waveManager = new WaveManager(this, this.enemyPool, this.enemies, this.player);
-    this.xpManager = new XPManager(this);
+    this.xpManager = new XPManager(this, this.player);
     this.hud = new HUD(this);
     this.joystick = new VirtualJoystick(this);
 
@@ -49,13 +53,19 @@ export default class GameScene extends Phaser.Scene {
       if (this.player.isDead) this.scene.start('GameOverScene', { time: this.elapsedSeconds, kills: this.kills });
     });
 
-    this.events.on('levelup', () => this.scene.launch('LevelUpScene'));
     this.events.on('xpchange', ({ level, xp, threshold }) => this.hud.updateXp(level, xp, threshold));
 
     this.input.keyboard.on('keydown-ESC', () => {
       this.scene.pause();
       this.scene.launch('PauseScene');
     });
+
+  }
+
+  handleEnemyDeath(enemy) {
+    this.kills += 1;
+    this.hud.updateKills(this.kills);
+    this.xpManager.spawnGem(enemy.x, enemy.y, enemy.xpValue);
   }
 
   drawBackgroundTiles() {
@@ -84,10 +94,11 @@ export default class GameScene extends Phaser.Scene {
     this.player.update(delta);
 
     this.waveManager.update(time, delta);
+    this.xpManager.update(delta);
 
     this.enemies.children.iterate((enemy) => {
       if (!enemy?.active) return;
-      enemy.chase(this.player);
+      enemy.chase(this.player, time);
     });
 
     this.updateMovement(delta);

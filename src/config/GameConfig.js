@@ -13,23 +13,18 @@ export const GAME_CONFIG = {
     healthRegenPerSecond: 0,
   },
   enemies: {
-    base: {
-      hp: 10,
-      speed: 60,
-      damage: 8,
-      xp: 1,
+    maxAlive: 200,
+    spawn: {
+      baseRatePerSecond: 1,
+      increasePer10Seconds: 0.1,
+      burstMin: 3,
+      burstMax: 8,
+      burstIntervalMs: 100,
+      spawnRadiusPadding: 100,
     },
-    maxAlive: 100,
-    initialSpawnIntervalMs: 1500,
-    minSpawnIntervalMs: 350,
-    difficultyRampPerSecond: 0.985,
   },
   xp: {
-    baseThreshold: 6,
-    growthFactor: 1.3,
-    maxLevel: 50,
-  },
-  waves: {
-    secondsPerWave: 30,
+    pickupRadius: 180,
+    magneticSpeed: 280,
   },
 };
