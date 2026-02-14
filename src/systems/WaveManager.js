@@ -1,4 +1,5 @@
 import { GAME_CONFIG } from '../config/GameConfig';
+import { ENEMY_SPAWN_TABLES, ENEMY_TYPES } from '../config/EnemyConfig';
 
 export default class WaveManager {
   constructor(scene, enemyPool, enemyGroup, target) {
@@ -8,44 +9,95 @@ export default class WaveManager {
     this.target = target;
 
     this.elapsedSeconds = 0;
-    this.spawnIntervalMs = GAME_CONFIG.enemies.initialSpawnIntervalMs;
-    this.spawnTimer = 0;
-    this.wave = 1;
+    this.spawnAccumulator = 0;
+
+    this.burstRemaining = 0;
+    this.burstTimerMs = 0;
   }
 
-  update(time, delta) {
+  update(_time, delta) {
     this.elapsedSeconds += delta / 1000;
-    this.wave = Math.floor(this.elapsedSeconds / GAME_CONFIG.waves.secondsPerWave) + 1;
-    this.spawnIntervalMs = Math.max(
-      GAME_CONFIG.enemies.minSpawnIntervalMs,
-      GAME_CONFIG.enemies.initialSpawnIntervalMs *
-        Math.pow(GAME_CONFIG.enemies.difficultyRampPerSecond, this.elapsedSeconds),
+
+    if (this.burstRemaining > 0) {
+      this.burstTimerMs -= delta;
+      while (this.burstRemaining > 0 && this.burstTimerMs <= 0) {
+        this.spawnEnemy();
+        this.burstRemaining -= 1;
+        this.burstTimerMs += GAME_CONFIG.enemies.spawn.burstIntervalMs;
+      }
+      return;
+    }
+
+    const spawnRatePerSecond = GAME_CONFIG.enemies.spawn.baseRatePerSecond +
+      ((this.elapsedSeconds / 10) * GAME_CONFIG.enemies.spawn.increasePer10Seconds);
+
+    this.spawnAccumulator += (delta / 1000) * spawnRatePerSecond;
+
+    if (this.spawnAccumulator < 1) return;
+    this.spawnAccumulator -= 1;
+
+    this.burstRemaining = Phaser.Math.Between(
+      GAME_CONFIG.enemies.spawn.burstMin,
+      GAME_CONFIG.enemies.spawn.burstMax,
     );
-
-    this.spawnTimer += delta;
-    if (this.spawnTimer < this.spawnIntervalMs) return;
-    this.spawnTimer = 0;
-
-    if (this.enemyPool.activeCount >= GAME_CONFIG.enemies.maxAlive) return;
-    this.spawnEnemy(time);
+    this.burstTimerMs = 0;
   }
 
   spawnEnemy() {
+    if (this.enemyPool.activeCount >= GAME_CONFIG.enemies.maxAlive) {
+      this.burstRemaining = 0;
+      return;
+    }
+
+    const enemyType = this.pickEnemyType();
     const spawnPoint = this.getSpawnPoint();
+
     const enemy = this.enemyPool.acquire();
     enemy.setPosition(spawnPoint.x, spawnPoint.y);
-    enemy.configure(GAME_CONFIG.enemies.base);
+    enemy.configure(enemyType);
     this.enemyGroup.add(enemy);
+  }
+
+  pickEnemyType() {
+    if (this.elapsedSeconds >= 180) {
+      const progression = Math.min(1, (this.elapsedSeconds - 180) / 180);
+      const skeleton = Phaser.Math.Linear(0.32, 0.2, progression);
+      const bat = Phaser.Math.Linear(0.22, 0.2, progression);
+      const ghost = 0.15;
+      const knight = Phaser.Math.Linear(0.2, 0.3, progression);
+      const wraith = Phaser.Math.Linear(0.11, 0.15, progression);
+      return this.weightedPick({ skeleton, bat, ghost, knight, wraith });
+    }
+
+    const table = ENEMY_SPAWN_TABLES.find((entry) => this.elapsedSeconds < entry.untilSeconds) ?? ENEMY_SPAWN_TABLES[0];
+    return this.weightedPick(table.weights);
+  }
+
+  weightedPick(weightMap) {
+    const total = Object.values(weightMap).reduce((sum, weight) => sum + weight, 0);
+    let roll = Math.random() * total;
+
+    const entries = Object.entries(weightMap);
+    for (let i = 0; i < entries.length; i += 1) {
+      const [enemyKey, weight] = entries[i];
+      roll -= weight;
+      if (roll <= 0) {
+        return ENEMY_TYPES[enemyKey];
+      }
+    }
+
+    return ENEMY_TYPES.skeleton;
   }
 
   getSpawnPoint() {
     const camera = this.scene.cameras.main;
-    const padding = 30;
-    const edge = Phaser.Math.Between(0, 3);
+    const diagonal = Math.sqrt((camera.width ** 2) + (camera.height ** 2));
+    const radius = diagonal + GAME_CONFIG.enemies.spawn.spawnRadiusPadding;
+    const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
 
-    if (edge === 0) return { x: camera.worldView.x - padding, y: Phaser.Math.Between(camera.worldView.y, camera.worldView.bottom) };
-    if (edge === 1) return { x: camera.worldView.right + padding, y: Phaser.Math.Between(camera.worldView.y, camera.worldView.bottom) };
-    if (edge === 2) return { x: Phaser.Math.Between(camera.worldView.x, camera.worldView.right), y: camera.worldView.y - padding };
-    return { x: Phaser.Math.Between(camera.worldView.x, camera.worldView.right), y: camera.worldView.bottom + padding };
+    return {
+      x: this.target.x + Math.cos(angle) * radius,
+      y: this.target.y + Math.sin(angle) * radius,
+    };
   }
 }
