@@ -6,6 +6,7 @@ import Enemy from '../entities/Enemy';
 import ObjectPool from '../utils/ObjectPool';
 import WaveManager from '../systems/WaveManager';
 import XPManager from '../systems/XPManager';
+import BossManager from '../systems/BossManager';
 import HUD from '../ui/HUD';
 import VirtualJoystick from '../ui/VirtualJoystick';
 import HolyWater from '../weapons/HolyWater';
@@ -49,6 +50,9 @@ export default class GameScene extends Phaser.Scene {
 
     this.waveManager = new WaveManager(this, this.enemyPool, this.enemies, this.player);
     this.xpManager = new XPManager(this, this.player);
+    this.bossManager = new BossManager(this, this.player, this.enemies, () => {
+      this.bossesDefeated += 1;
+    });
     this.hud = new HUD(this);
     this.joystick = new VirtualJoystick(this);
 
@@ -154,6 +158,8 @@ export default class GameScene extends Phaser.Scene {
 
     this.kills = 0;
     this.elapsedSeconds = 0;
+    this.bossesDefeated = 0;
+    this.evolvedWeapons = 0;
 
     this.hud.updateHealth(this.player.health, this.player.maxHealth);
     this.hud.updateXp(this.xpManager.level, this.xpManager.currentXp, this.xpManager.threshold);
@@ -166,11 +172,16 @@ export default class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.enemies, (_, enemy) => {
       const gotHit = this.player.takeDamage(enemy.damage);
       if (gotHit) this.hud.updateHealth(this.player.health, this.player.maxHealth);
-      if (this.player.isDead) this.scene.start('GameOverScene', { time: this.elapsedSeconds, kills: this.kills });
+      if (this.player.isDead) this.endRun('defeat');
     });
 
     this.physics.add.overlap(this.weaponProjectiles, this.enemies, (projectile, enemy) => {
       this.handleWeaponHit(projectile, enemy);
+    });
+
+    this.events.on('playerhit', () => {
+      this.hud.updateHealth(this.player.health, this.player.maxHealth);
+      if (this.player.isDead) this.endRun('defeat');
     });
 
     this.events.on('xpchange', ({ level, xp, threshold }) => this.hud.updateXp(level, xp, threshold));
@@ -325,6 +336,7 @@ export default class GameScene extends Phaser.Scene {
       const evolution = choice.evolution;
       evolution.requires.forEach((weaponId) => this.removeWeapon(weaponId));
       this.addWeapon(evolution.evolvedWeaponId);
+      this.evolvedWeapons += 1;
       this.cameras.main.flash(300, 255, 226, 120, false);
       this.updateEvolutionHud();
       return;
@@ -359,6 +371,32 @@ export default class GameScene extends Phaser.Scene {
     this.xpManager.spawnGem(enemy.x, enemy.y, enemy.xpValue);
   }
 
+  handleBossTreasure() {
+    const readyEvolutions = this.getReadyEvolutions();
+    if (readyEvolutions.length > 0) {
+      this.applyLevelUpChoice({ type: 'evolution', evolution: readyEvolutions[0] });
+      return;
+    }
+
+    this.player.health = Phaser.Math.Clamp(
+      this.player.health + GAME_CONFIG.bosses.chest.rareHeal,
+      0,
+      this.player.maxHealth,
+    );
+    this.player.speed *= GAME_CONFIG.bosses.chest.rareMoveSpeedMult;
+    this.hud.updateHealth(this.player.health, this.player.maxHealth);
+  }
+
+  endRun(mode) {
+    this.scene.start('GameOverScene', {
+      mode,
+      time: this.elapsedSeconds,
+      kills: this.kills,
+      bossesDefeated: this.bossesDefeated,
+      weaponsEvolved: this.evolvedWeapons,
+    });
+  }
+
   drawBackgroundTiles() {
     const tileSize = 64;
     const graphics = this.add.graphics();
@@ -384,8 +422,18 @@ export default class GameScene extends Phaser.Scene {
     this.hud.updateTimer(this.elapsedSeconds);
     this.player.update(delta);
 
+    if (this.elapsedSeconds >= GAME_CONFIG.victory.surviveSeconds) {
+      this.endRun('victory');
+      return;
+    }
+
     this.waveManager.update(time, delta);
+    this.bossManager.update(this.elapsedSeconds, time, delta);
     this.xpManager.update(delta);
+
+    if (this.bossManager.activeBoss?.active) {
+      this.handleWeaponBossOverlaps();
+    }
 
     this.enemies.children.iterate((enemy) => {
       if (!enemy?.active) return;
@@ -398,6 +446,15 @@ export default class GameScene extends Phaser.Scene {
     });
 
     this.updateMovement(delta);
+  }
+
+  handleWeaponBossOverlaps() {
+    this.weaponProjectiles.children.iterate((projectile) => {
+      if (!projectile?.active || !this.bossManager.activeBoss?.active) return;
+      if (Phaser.Geom.Intersects.RectangleToRectangle(projectile.getBounds(), this.bossManager.activeBoss.getBounds())) {
+        this.handleWeaponHit(projectile, this.bossManager.activeBoss);
+      }
+    });
   }
 
   updateMovement(delta) {
