@@ -1,15 +1,16 @@
 export const GAME_CONFIG = {
   world: {
-    width: 2000,
-    height: 2000,
+    width: 3200,
+    height: 2400,
   },
   player: {
     maxHealth: 100,
-    speed: 190,
-    invulnerabilityMs: 450,
-    pickupRadius: 90,
-    startX: 400,
-    startY: 300,
+    speed: 200,
+    invulnerabilityMs: 500,
+    pickupRadius: 80,
+    startX: 1600,
+    startY: 1200,
+    healthRegenPerSecond: 0,
   },
   enemies: {
     base: {

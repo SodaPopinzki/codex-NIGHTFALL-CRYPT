@@ -13,11 +13,14 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor('#09060d');
     this.physics.world.setBounds(0, 0, GAME_CONFIG.world.width, GAME_CONFIG.world.height);
+    this.drawBackgroundTiles();
 
     this.player = new Player(this, GAME_CONFIG.player.startX, GAME_CONFIG.player.startY);
-    this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
+
+    this.cameras.main.setBounds(0, 0, GAME_CONFIG.world.width, GAME_CONFIG.world.height);
+    this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+    this.cameras.main.setDeadzone(50, 50);
 
     this.enemyPool = new ObjectPool(
       () => new Enemy(this, -999, -999),
@@ -32,6 +35,10 @@ export default class GameScene extends Phaser.Scene {
 
     this.kills = 0;
     this.elapsedSeconds = 0;
+
+    this.hud.updateHealth(this.player.health, this.player.maxHealth);
+    this.hud.updateXp(this.xpManager.level, this.xpManager.currentXp, this.xpManager.threshold);
+    this.hud.updateKills(this.kills);
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D');
@@ -51,9 +58,30 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
+  drawBackgroundTiles() {
+    const tileSize = 64;
+    const graphics = this.add.graphics();
+    const palette = [0x121218, 0x171720, 0x1d1d26];
+    const accent = 0x0a0a10;
+
+    for (let y = 0; y < GAME_CONFIG.world.height; y += tileSize) {
+      for (let x = 0; x < GAME_CONFIG.world.width; x += tileSize) {
+        const checker = ((x / tileSize) + (y / tileSize)) % palette.length;
+        const baseColor = palette[checker];
+        const color = Math.random() < 0.08 ? accent : baseColor;
+
+        graphics.fillStyle(color, 1);
+        graphics.fillRect(x, y, tileSize, tileSize);
+        graphics.lineStyle(1, 0x050507, 0.4);
+        graphics.strokeRect(x, y, tileSize, tileSize);
+      }
+    }
+  }
+
   update(time, delta) {
     this.elapsedSeconds += delta / 1000;
     this.hud.updateTimer(this.elapsedSeconds);
+    this.player.update(delta);
 
     this.waveManager.update(time, delta);
 
@@ -62,18 +90,20 @@ export default class GameScene extends Phaser.Scene {
       enemy.chase(this.player);
     });
 
-    this.updateMovement();
+    this.updateMovement(delta);
   }
 
-  updateMovement() {
+  updateMovement(delta) {
     const keyboardX = (this.cursors.right.isDown || this.wasd.D.isDown ? 1 : 0) -
       (this.cursors.left.isDown || this.wasd.A.isDown ? 1 : 0);
     const keyboardY = (this.cursors.down.isDown || this.wasd.S.isDown ? 1 : 0) -
       (this.cursors.up.isDown || this.wasd.W.isDown ? 1 : 0);
 
-    const joystickVector = this.joystick.getVector();
-    const movement = new Phaser.Math.Vector2(keyboardX + joystickVector.x, keyboardY + joystickVector.y).normalize();
+    const keyboardVector = new Phaser.Math.Vector2(keyboardX, keyboardY);
+    if (keyboardVector.lengthSq() > 1) {
+      keyboardVector.normalize();
+    }
 
-    this.player.setVelocity(movement.x * this.player.speed, movement.y * this.player.speed);
+    this.player.updateMovement(keyboardVector, this.joystick.getVector(), delta);
   }
 }

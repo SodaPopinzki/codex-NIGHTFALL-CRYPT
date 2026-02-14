@@ -2,20 +2,23 @@ export default class VirtualJoystick {
   constructor(scene) {
     this.scene = scene;
     this.pointerId = null;
-    this.baseRadius = 42;
-    this.thumbRadius = 22;
-    this.origin = new Phaser.Math.Vector2(90, scene.scale.height - 90);
+    this.baseRadius = 60;
+    this.thumbRadius = 26;
+    this.deadZone = 40;
+    this.origin = new Phaser.Math.Vector2(0, 0);
     this.direction = new Phaser.Math.Vector2(0, 0);
 
-    this.base = scene.add.circle(this.origin.x, this.origin.y, this.baseRadius, 0x29142e, 0.5)
+    this.isTouchDevice = scene.sys.game.device.input.touch;
+
+    this.base = scene.add.circle(0, 0, this.baseRadius, 0xa9a0b4, 0.28)
       .setScrollFactor(0)
       .setDepth(30)
-      .setVisible(scene.sys.game.device.input.touch);
+      .setVisible(false);
 
-    this.thumb = scene.add.circle(this.origin.x, this.origin.y, this.thumbRadius, 0xbda3cc, 0.7)
+    this.thumb = scene.add.circle(0, 0, this.thumbRadius, 0xddd4e8, 0.45)
       .setScrollFactor(0)
       .setDepth(31)
-      .setVisible(scene.sys.game.device.input.touch);
+      .setVisible(false);
 
     scene.input.on('pointerdown', this.handleDown, this);
     scene.input.on('pointermove', this.handleMove, this);
@@ -24,25 +27,36 @@ export default class VirtualJoystick {
   }
 
   handleDown(pointer) {
-    if (!this.base.visible || this.pointerId !== null) return;
-    if (pointer.x < this.scene.scale.width * 0.45 && pointer.y > this.scene.scale.height * 0.45) {
-      this.pointerId = pointer.id;
-      this.origin.set(pointer.x, pointer.y);
-      this.base.setPosition(pointer.x, pointer.y);
-      this.thumb.setPosition(pointer.x, pointer.y);
-    }
+    if (!this.isTouchDevice || this.pointerId !== null) return;
+    this.pointerId = pointer.id;
+    this.origin.set(pointer.x, pointer.y);
+    this.base.setPosition(pointer.x, pointer.y).setVisible(true);
+    this.thumb.setPosition(pointer.x, pointer.y).setVisible(true);
   }
 
   handleMove(pointer) {
     if (pointer.id !== this.pointerId) return;
-    const delta = new Phaser.Math.Vector2(pointer.x - this.origin.x, pointer.y - this.origin.y);
-    const distance = Math.min(delta.length(), this.baseRadius);
-    const angle = Math.atan2(delta.y, delta.x);
 
-    this.direction.setToPolar(angle, distance / this.baseRadius);
+    const deltaX = pointer.x - this.origin.x;
+    const deltaY = pointer.y - this.origin.y;
+    const delta = new Phaser.Math.Vector2(deltaX, deltaY);
+    const distance = delta.length();
+
+    if (distance <= this.deadZone) {
+      this.direction.set(0, 0);
+      this.thumb.setPosition(this.origin.x, this.origin.y);
+      return;
+    }
+
+    const clampedDistance = Math.min(distance, this.baseRadius);
+    const normalizedStrength = (clampedDistance - this.deadZone) / (this.baseRadius - this.deadZone);
+
+    delta.normalize();
+    this.direction.copy(delta).scale(normalizedStrength);
+
     this.thumb.setPosition(
-      this.origin.x + Math.cos(angle) * distance,
-      this.origin.y + Math.sin(angle) * distance,
+      this.origin.x + delta.x * clampedDistance,
+      this.origin.y + delta.y * clampedDistance,
     );
   }
 
@@ -50,7 +64,8 @@ export default class VirtualJoystick {
     if (pointer.id !== this.pointerId) return;
     this.pointerId = null;
     this.direction.set(0, 0);
-    this.thumb.setPosition(this.origin.x, this.origin.y);
+    this.base.setVisible(false);
+    this.thumb.setVisible(false);
   }
 
   getVector() {
@@ -62,5 +77,7 @@ export default class VirtualJoystick {
     this.scene.input.off('pointermove', this.handleMove, this);
     this.scene.input.off('pointerup', this.handleUp, this);
     this.scene.input.off('pointerupoutside', this.handleUp, this);
+    this.base.destroy();
+    this.thumb.destroy();
   }
 }
