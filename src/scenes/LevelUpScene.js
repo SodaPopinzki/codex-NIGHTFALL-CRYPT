@@ -44,8 +44,12 @@ export default class LevelUpScene extends Phaser.Scene {
 
   createCard(x, y, width, height, choice) {
     const card = this.add.container(x, y);
-    const bg = this.add.rectangle(0, 0, width, height, 0x221228, 0.96)
-      .setStrokeStyle(2, 0xe7cc8b, 0.9)
+    const isEvolution = choice.type === 'evolution';
+    const fill = isEvolution ? 0x30200a : 0x221228;
+    const stroke = isEvolution ? 0xffd76d : 0xe7cc8b;
+
+    const bg = this.add.rectangle(0, 0, width, height, fill, 0.96)
+      .setStrokeStyle(3, stroke, 1)
       .setInteractive({ useHandCursor: true });
 
     const icon = this.add.rectangle(0, -70, 58, 58, choice.iconColor, 1)
@@ -61,19 +65,21 @@ export default class LevelUpScene extends Phaser.Scene {
       wordWrap: { width: width - 18 },
     }).setOrigin(0.5);
 
-    const detail = choice.level === 0
-      ? 'NEW'
-      : `Level ${choice.level} → ${choice.level + 1}`;
+    const detail = isEvolution
+      ? `EVOLVE: ${choice.sourceWeapons[0]} + ${choice.sourceWeapons[1]} = ${choice.resultWeapon}`
+      : (choice.level === 0 ? 'NEW' : `Level ${choice.level} → ${choice.level + 1}`);
 
-    const levelText = this.add.text(0, 12, detail, {
+    const levelText = this.add.text(0, 16, detail, {
       fontFamily: 'Georgia, serif',
-      fontSize: '16px',
-      color: '#89ffb6',
+      fontSize: isEvolution ? '13px' : '16px',
+      align: 'center',
+      color: isEvolution ? '#ffd76d' : '#89ffb6',
       stroke: '#120911',
       strokeThickness: 3,
+      wordWrap: { width: width - 20 },
     }).setOrigin(0.5);
 
-    const description = this.add.text(0, 72, choice.description, {
+    const description = this.add.text(0, 82, choice.description, {
       fontFamily: 'Georgia, serif',
       fontSize: '14px',
       align: 'center',
@@ -84,12 +90,12 @@ export default class LevelUpScene extends Phaser.Scene {
     card.add([bg, icon, title, levelText, description]);
 
     bg.on('pointerover', () => {
-      bg.setFillStyle(0x2e1735, 1);
+      bg.setFillStyle(isEvolution ? 0x4a300e : 0x2e1735, 1);
       card.y = y - 4;
     });
 
     bg.on('pointerout', () => {
-      bg.setFillStyle(0x221228, 0.96);
+      bg.setFillStyle(fill, 0.96);
       card.y = y;
     });
 

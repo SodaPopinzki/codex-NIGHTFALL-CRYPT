@@ -18,6 +18,12 @@ export default class HUD {
       .setScrollFactor(0)
       .setDepth(101);
 
+    this.evolutionReadyText = scene.add.text(16, 70, 'Evolve: —', this.textStyle('12px'))
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDepth(101)
+      .setColor('#ffd76d');
+
     this.root.add([
       this.healthBar.border,
       this.healthBar.fill,
@@ -25,6 +31,7 @@ export default class HUD {
       this.xpBar.border,
       this.xpBar.fill,
       this.xpBar.label,
+      this.evolutionReadyText,
     ]);
 
     scene.scale.on('resize', this.handleResize, this);
@@ -70,6 +77,15 @@ export default class HUD {
     const ratio = Phaser.Math.Clamp(xp / threshold, 0, 1);
     this.xpBar.fill.width = this.maxBarWidth * ratio;
     this.xpBar.label.setText(`LV ${level}  XP ${xp}/${threshold}`);
+  }
+
+  updateEvolutionReady(readyEvolutionNames) {
+    if (!readyEvolutionNames.length) {
+      this.evolutionReadyText.setText('Evolve: —');
+      return;
+    }
+
+    this.evolutionReadyText.setText(`Evolve Ready: ${readyEvolutionNames.join(', ')}`);
   }
 
   updateTimer(totalSeconds) {

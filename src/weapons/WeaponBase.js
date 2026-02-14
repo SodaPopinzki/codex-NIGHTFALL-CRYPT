@@ -104,6 +104,10 @@ export default class WeaponBase {
     // override per-weapon when needed
   }
 
+  destroy() {
+    this.projectilePool.releaseAll();
+  }
+
   fire() {
     throw new Error('Weapon fire() must be implemented by subclasses.');
   }
