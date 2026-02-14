@@ -227,14 +227,19 @@ export default class GameScene extends Phaser.Scene {
 
     this.input.keyboard.on('keydown-ESC', () => this.openPauseMenu());
 
-    this.pauseButton = this.add.text(this.scale.width - 18, 16, 'II', {
+    this.pauseButtonBg = this.add.rectangle(this.scale.width - 36, 36, 48, 48, 0x2a1733, 0.95)
+      .setStrokeStyle(2, 0xeed9c2, 0.8)
+      .setScrollFactor(0)
+      .setDepth(220)
+      .setInteractive({ useHandCursor: true });
+    this.pauseButton = this.add.text(this.scale.width - 36, 36, 'II', {
       fontFamily: 'Georgia, serif',
-      fontSize: '26px',
+      fontSize: '28px',
       color: '#f2dfc9',
-      backgroundColor: '#2a1733',
-      padding: { x: 8, y: 2 },
-    }).setOrigin(1, 0).setScrollFactor(0).setDepth(220).setInteractive({ useHandCursor: true });
-    this.pauseButton.on('pointerdown', () => this.openPauseMenu());
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(221);
+    this.pauseButtonBg.on('pointerdown', () => this.openPauseMenu());
+
+    this.scale.on('resize', this.handleResize, this);
   }
 
   openPauseMenu() {
@@ -391,7 +396,16 @@ export default class GameScene extends Phaser.Scene {
     const reserved = readyEvolutions.slice(0, count);
     const remaining = count - reserved.length;
     const pool = Phaser.Utils.Array.Shuffle([...weaponChoices, ...passiveChoices]);
-    return [...reserved, ...pool.slice(0, remaining)];
+    const pickedIds = new Set(reserved.map((choice) => choice.id));
+    const options = [...reserved];
+
+    for (let i = 0; i < pool.length && options.length < count; i += 1) {
+      if (pickedIds.has(pool[i].id)) continue;
+      pickedIds.add(pool[i].id);
+      options.push(pool[i]);
+    }
+
+    return options.slice(0, count);
   }
 
   updateEvolutionHud() {
@@ -522,6 +536,12 @@ export default class GameScene extends Phaser.Scene {
 
     this.enemies.children.iterate((enemy) => {
       if (!enemy?.active) return;
+      const isNearView = this.isInCullBounds(enemy, GAME_CONFIG.performance.cullingPadding);
+      enemy.setVisible(isNearView);
+      if (!isNearView) {
+        enemy.body.stop();
+        return;
+      }
       enemy.chase(this.player, time);
     });
 
@@ -532,6 +552,11 @@ export default class GameScene extends Phaser.Scene {
 
     this.weaponProjectiles.children.iterate((projectile) => {
       if (!projectile?.active) return;
+      if (!this.isInCullBounds(projectile, GAME_CONFIG.performance.projectileCullingPadding)) {
+        this.releaseProjectileFromWeapon(projectile);
+        return;
+      }
+
       const nextTrailAt = projectile.getData('nextTrailAt') ?? 0;
       if (time >= nextTrailAt) {
         projectile.setData('nextTrailAt', time + 70);
@@ -541,6 +566,20 @@ export default class GameScene extends Phaser.Scene {
 
     this.updateMovement(delta);
     this.vfx.update(this.player, this.elapsedSeconds);
+  }
+
+
+  handleResize(gameSize) {
+    this.pauseButtonBg?.setPosition(gameSize.width - 36, 36);
+    this.pauseButton?.setPosition(gameSize.width - 36, 36);
+  }
+
+  isInCullBounds(entity, padding) {
+    const view = this.cameras.main.worldView;
+    return entity.x >= view.x - padding
+      && entity.x <= view.right + padding
+      && entity.y >= view.y - padding
+      && entity.y <= view.bottom + padding;
   }
 
   handleWeaponBossOverlaps() {
