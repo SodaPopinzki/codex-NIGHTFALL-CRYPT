@@ -108,6 +108,12 @@ export const GAME_CONFIG = {
     pickupRadius: 180,
     magneticSpeed: 280,
   },
+  performance: {
+    cullingPadding: 220,
+    projectileCullingPadding: 140,
+    maxTransientParticles: 20,
+    maxBurstParticles: 36,
+  },
   meta: {
     version: 'v1.0',
     bonuses: {

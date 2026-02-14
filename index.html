@@ -2,8 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <title>Nightfall Crypt</title>
+    <meta name="description" content="Survive the gothic crypt, evolve forbidden weapons, and outlast endless night hordes." />
+    <meta property="og:title" content="Nightfall Crypt" />
+    <meta property="og:description" content="A gothic vampire-survivors inspired auto-battler built with Phaser." />
+    <meta property="og:image" content="/og-preview-placeholder.png" />
+    <meta property="og:type" content="website" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTAiIGZpbGw9IiMwYjA2MTAiLz48cGF0aCBkPSJNMjggOGg4djE2aDEydjhIMzZ2MjRoLThWMzJIMTZ2LThoMTJ6IiBmaWxsPSIjZGZjN2ZmIi8+PC9zdmc+" />
     <style>
       html,
       body,
@@ -13,11 +19,32 @@
         height: 100%;
         background: #09060d;
         overflow: hidden;
+        overscroll-behavior: none;
+      }
+
+      body {
+        position: fixed;
+        inset: 0;
+        touch-action: none;
+      }
+
+      .site-footer {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 6px;
+        text-align: center;
+        color: #8a799f;
+        font-family: Georgia, serif;
+        font-size: 12px;
+        pointer-events: none;
+        z-index: 10;
       }
     </style>
   </head>
   <body>
     <div id="app"></div>
+    <div class="site-footer">© 2026 SodaPopinzki</div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

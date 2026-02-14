@@ -1,3 +1,5 @@
+import { GAME_CONFIG } from '../config/GameConfig';
+
 const PARTICLE_KEY = 'fx-particle';
 
 function shadeColor(color, amount) {
@@ -46,6 +48,7 @@ export default class VisualEffects {
     }).setDepth(20).setScrollFactor(0);
 
     this.nextLightningAt = 0;
+    this.transientParticles = 0;
     this.resize(scene.scale.gameSize);
     scene.scale.on('resize', this.resize, this);
   }
@@ -79,8 +82,33 @@ export default class VisualEffects {
     }
   }
 
+
+  canSpawnTransient() {
+    return this.transientParticles < GAME_CONFIG.performance.maxTransientParticles;
+  }
+
+  spawnBurst(x, y, config, depth = 80) {
+    const maxBurst = GAME_CONFIG.performance.maxBurstParticles;
+    const quantity = config.quantity ? Math.min(config.quantity, maxBurst) : config.quantity;
+    if (!this.canSpawnTransient()) return null;
+
+    const emitter = this.scene.add.particles(x, y, PARTICLE_KEY, {
+      ...config,
+      quantity,
+      emitting: false,
+    }).setDepth(depth);
+
+    this.transientParticles += 1;
+    emitter.explode();
+    this.scene.time.delayedCall((config.lifespan?.max ?? config.lifespan ?? 600) + 20, () => {
+      this.transientParticles = Math.max(0, this.transientParticles - 1);
+      emitter.destroy();
+    });
+    return emitter;
+  }
+
   playEnemyDeath(x, y, color = 0xffffff) {
-    this.scene.add.particles(x, y, PARTICLE_KEY, {
+    this.spawnBurst(x, y, {
       quantity: Phaser.Math.Between(8, 12),
       lifespan: 300,
       speed: { min: 50, max: 150 },
@@ -88,8 +116,7 @@ export default class VisualEffects {
       alpha: { start: 0.8, end: 0 },
       tint: [shadeColor(color, -20), color, shadeColor(color, 25)],
       blendMode: 'ADD',
-      emitting: false,
-    }).setDepth(70).explode();
+    }, 70);
   }
 
   playImpact(x, y) {
@@ -98,7 +125,7 @@ export default class VisualEffects {
   }
 
   playLevelUp(player) {
-    this.scene.add.particles(player.x, player.y, PARTICLE_KEY, {
+    this.spawnBurst(player.x, player.y, {
       quantity: 30,
       lifespan: 600,
       speed: { min: 80, max: 220 },
@@ -106,15 +133,14 @@ export default class VisualEffects {
       alpha: { start: 1, end: 0 },
       tint: [0xffd86e, 0xfff3b0],
       blendMode: 'ADD',
-      emitting: false,
-    }).setDepth(100).explode();
+    }, 100);
 
     const ring = this.scene.add.circle(player.x, player.y, 10, 0xffda78, 0).setStrokeStyle(4, 0xffda78, 0.9).setDepth(99);
     this.scene.tweens.add({ targets: ring, radius: 120, alpha: 0, duration: 500, ease: 'Cubic.Out', onComplete: () => ring.destroy() });
   }
 
   playBossDeath(x, y, color = 0xffffff) {
-    this.scene.add.particles(x, y, PARTICLE_KEY, {
+    this.spawnBurst(x, y, {
       quantity: 70,
       lifespan: { min: 600, max: 1200 },
       speed: { min: 120, max: 300 },
@@ -122,8 +148,7 @@ export default class VisualEffects {
       alpha: { start: 1, end: 0 },
       tint: [0xffffff, color, 0xff8e8e],
       blendMode: 'ADD',
-      emitting: false,
-    }).setDepth(110).explode();
+    }, 110);
     this.scene.cameras.main.shake(220, 0.02);
   }
 
@@ -166,7 +191,7 @@ export default class VisualEffects {
   }
 
   playGemTrail(x, y, player) {
-    const sparkle = this.scene.add.particles(x, y, PARTICLE_KEY, {
+    this.spawnBurst(x, y, {
       quantity: 10,
       lifespan: 250,
       speed: { min: 30, max: 90 },
@@ -174,9 +199,7 @@ export default class VisualEffects {
       alpha: { start: 0.8, end: 0 },
       tint: [0x87ff8f, 0xeaffee],
       blendMode: 'ADD',
-      emitting: false,
-    }).setDepth(80);
-    sparkle.explode();
+    }, 80);
 
     const trail = this.scene.add.particles(x, y, PARTICLE_KEY, {
       quantity: 1,
@@ -238,14 +261,13 @@ export default class VisualEffects {
   }
 
   emitProjectileTrail(projectile) {
-    this.scene.add.particles(projectile.x, projectile.y, PARTICLE_KEY, {
+    this.spawnBurst(projectile.x, projectile.y, {
       quantity: Phaser.Math.Between(2, 3),
       lifespan: 180,
       speed: { min: 10, max: 35 },
       scale: { start: 0.3, end: 0 },
       alpha: { start: 0.45, end: 0 },
       tint: projectile.tintTopLeft || 0xffffff,
-      emitting: false,
-    }).setDepth(75).explode();
+    }, 75);
   }
 }

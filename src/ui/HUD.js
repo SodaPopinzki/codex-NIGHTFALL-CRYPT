@@ -18,6 +18,13 @@ export default class HUD {
       .setScrollFactor(0)
       .setDepth(101);
 
+    this.shortcutText = scene.add.text(scene.scale.width * 0.5, scene.scale.height - 14, 'WASD to move, ESC to pause', this.textStyle('14px'))
+      .setOrigin(0.5, 1)
+      .setScrollFactor(0)
+      .setDepth(101)
+      .setColor('#cfc3de')
+      .setVisible(!scene.sys.game.device.input.touch);
+
     this.evolutionReadyText = scene.add.text(16, 70, 'Evolve: —', this.textStyle('12px'))
       .setOrigin(0, 0)
       .setScrollFactor(0)
@@ -102,5 +109,6 @@ export default class HUD {
   handleResize(gameSize) {
     this.timerText.setPosition(gameSize.width * 0.5, 14);
     this.killText.setPosition(gameSize.width - 16, 14);
+    this.shortcutText.setPosition(gameSize.width * 0.5, gameSize.height - 14);
   }
 }
