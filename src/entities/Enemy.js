@@ -52,6 +52,8 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     this.baseTint = typeStats.color ?? 0xffffff;
     this.setTint(this.baseTint);
+    this.setDataEnabled();
+    this.setData('baseSpeed', this.speed);
     this.setAlpha(typeStats.alpha ?? 1);
     this.setScale(1);
     this.setActive(true).setVisible(true);
@@ -148,6 +150,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.setAlpha(1);
     this.setScale(1);
     this.clearTint();
+    this.body.setCircle(9);
     this.setActive(false).setVisible(false);
     this.body.enable = false;
     this.isDying = false;

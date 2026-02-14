@@ -5,12 +5,14 @@ export default class GameOverScene extends Phaser.Scene {
 
   create(data) {
     const { width, height } = this.scale;
-    this.cameras.main.setBackgroundColor('#130914');
+    const isVictory = data.mode === 'victory';
 
-    this.add.text(width / 2, height * 0.24, 'GAME OVER', {
+    this.cameras.main.setBackgroundColor(isVictory ? '#0e1a10' : '#130914');
+
+    this.add.text(width / 2, height * 0.2, isVictory ? 'VICTORY' : 'GAME OVER', {
       fontFamily: 'Georgia, serif',
       fontSize: '62px',
-      color: '#df8590',
+      color: isVictory ? '#9be7a0' : '#df8590',
       stroke: '#2b1329',
       strokeThickness: 8,
     }).setOrigin(0.5);
@@ -19,19 +21,18 @@ export default class GameOverScene extends Phaser.Scene {
     const mins = String(Math.floor(survived / 60)).padStart(2, '0');
     const secs = String(survived % 60).padStart(2, '0');
 
-    this.add.text(width / 2, height * 0.45, `Time Survived: ${mins}:${secs}`, {
+    const style = {
       fontFamily: 'Georgia, serif',
       fontSize: '28px',
       color: '#f2dfc9',
-    }).setOrigin(0.5);
+    };
 
-    this.add.text(width / 2, height * 0.53, `Enemies Slain: ${data.kills ?? 0}`, {
-      fontFamily: 'Georgia, serif',
-      fontSize: '28px',
-      color: '#f2dfc9',
-    }).setOrigin(0.5);
+    this.add.text(width / 2, height * 0.4, `Time Survived: ${mins}:${secs}`, style).setOrigin(0.5);
+    this.add.text(width / 2, height * 0.48, `Enemies Slain: ${data.kills ?? 0}`, style).setOrigin(0.5);
+    this.add.text(width / 2, height * 0.56, `Bosses Defeated: ${data.bossesDefeated ?? 0}`, style).setOrigin(0.5);
+    this.add.text(width / 2, height * 0.64, `Weapons Evolved: ${data.weaponsEvolved ?? 0}`, style).setOrigin(0.5);
 
-    const restart = this.add.text(width / 2, height * 0.68, 'Restart', {
+    const restart = this.add.text(width / 2, height * 0.78, 'Restart', {
       fontFamily: 'Georgia, serif',
       fontSize: '32px',
       color: '#efe5c4',

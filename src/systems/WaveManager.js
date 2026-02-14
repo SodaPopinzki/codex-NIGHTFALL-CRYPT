@@ -49,13 +49,52 @@ export default class WaveManager {
       return;
     }
 
-    const enemyType = this.pickEnemyType();
+    const enemyType = this.getScaledEnemyStats(this.pickEnemyType());
     const spawnPoint = this.getSpawnPoint();
 
     const enemy = this.enemyPool.acquire();
     enemy.setPosition(spawnPoint.x, spawnPoint.y);
     enemy.configure(enemyType);
+
+    if (enemyType.isElite) {
+      enemy.setScale(GAME_CONFIG.enemies.scaling.eliteSizeMultiplier);
+      enemy.setTint(0xffe599);
+      enemy.setData('baseTint', enemyType.color);
+      this.scene.tweens.add({
+        targets: enemy,
+        alpha: 0.75,
+        duration: 350,
+        yoyo: true,
+        repeat: -1,
+      });
+      enemy.once('destroy', () => this.scene.tweens.killTweensOf(enemy));
+    }
+
     this.enemyGroup.add(enemy);
+  }
+
+  getScaledEnemyStats(typeStats) {
+    const minutes = this.elapsedSeconds / 60;
+    const scaling = GAME_CONFIG.enemies.scaling;
+    const hpMult = 1 + (minutes * scaling.hpPerMinute);
+    const speedMult = 1 + Math.min(scaling.speedCap, minutes * scaling.speedPerMinute);
+    const damageMult = 1 + (minutes * scaling.damagePerMinute);
+
+    const scaled = {
+      ...typeStats,
+      hp: Math.ceil(typeStats.hp * hpMult),
+      speed: typeStats.speed * speedMult,
+      damage: Math.ceil(typeStats.damage * damageMult),
+    };
+
+    if (this.elapsedSeconds >= scaling.eliteStartSeconds && Math.random() < scaling.eliteChance) {
+      scaled.isElite = true;
+      scaled.hp = Math.ceil(scaled.hp * scaling.eliteHpMultiplier);
+      scaled.damage = Math.ceil(scaled.damage * scaling.eliteDamageMultiplier);
+      scaled.xp = Math.ceil(typeStats.xp * 2);
+    }
+
+    return scaled;
   }
 
   pickEnemyType() {
