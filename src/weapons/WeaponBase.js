@@ -5,6 +5,11 @@ export default class WeaponBase {
     this.scene = scene;
     this.owner = owner;
 
+    this.baseCooldownMs = config.cooldownMs;
+    this.baseDamage = config.damage;
+    this.baseProjectileCount = config.projectileCount;
+    this.baseArea = config.area;
+
     this.cooldownMs = config.cooldownMs;
     this.damage = config.damage;
     this.projectileCount = config.projectileCount;
@@ -14,11 +19,26 @@ export default class WeaponBase {
     this.pierce = config.pierce;
 
     this.lastFireTime = -Infinity;
+    this.level = 1;
 
     this.projectilePool = new ObjectPool(
       () => this.createProjectile(),
       (projectile) => this.resetProjectile(projectile),
     );
+
+    this.setLevel(1);
+  }
+
+  setLevel(level) {
+    this.level = Phaser.Math.Clamp(level, 1, 8);
+    const levelOffset = this.level - 1;
+
+    this.damage = this.baseDamage * (1.15 ** levelOffset);
+    this.cooldownMs = Math.max(300, this.baseCooldownMs * (0.92 ** levelOffset));
+    this.area = this.baseArea * (1.1 ** levelOffset);
+
+    const projectileBonus = (this.level >= 3 ? 1 : 0) + (this.level >= 6 ? 1 : 0);
+    this.projectileCount = this.baseProjectileCount + projectileBonus;
   }
 
   canFire(now) {
