@@ -1,4 +1,5 @@
 import { GAME_CONFIG } from '../config/GameConfig';
+import { WEAPON_CONFIG } from '../config/WeaponConfig';
 import Player from '../entities/Player';
 import Enemy from '../entities/Enemy';
 import ObjectPool from '../utils/ObjectPool';
@@ -6,6 +7,10 @@ import WaveManager from '../systems/WaveManager';
 import XPManager from '../systems/XPManager';
 import HUD from '../ui/HUD';
 import VirtualJoystick from '../ui/VirtualJoystick';
+import HolyWater from '../weapons/HolyWater';
+import CrossBoomerang from '../weapons/CrossBoomerang';
+import WhipChain from '../weapons/WhipChain';
+import FlamePillar from '../weapons/FlamePillar';
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -31,11 +36,19 @@ export default class GameScene extends Phaser.Scene {
       (enemy) => enemy.deactivate(),
     );
     this.enemies = this.physics.add.group({ runChildUpdate: false });
+    this.weaponProjectiles = this.physics.add.group({ runChildUpdate: false });
 
     this.waveManager = new WaveManager(this, this.enemyPool, this.enemies, this.player);
     this.xpManager = new XPManager(this, this.player);
     this.hud = new HUD(this);
     this.joystick = new VirtualJoystick(this);
+
+    this.weapons = [new HolyWater(this, this.player, WEAPON_CONFIG.holyWater)];
+    this.pendingWeapons = [
+      () => new CrossBoomerang(this, this.player, WEAPON_CONFIG.crossBoomerang),
+      () => new WhipChain(this, this.player, WEAPON_CONFIG.whipChain),
+      () => new FlamePillar(this, this.player, WEAPON_CONFIG.flamePillar),
+    ];
 
     this.kills = 0;
     this.elapsedSeconds = 0;
@@ -53,13 +66,55 @@ export default class GameScene extends Phaser.Scene {
       if (this.player.isDead) this.scene.start('GameOverScene', { time: this.elapsedSeconds, kills: this.kills });
     });
 
+    this.physics.add.overlap(this.weaponProjectiles, this.enemies, (projectile, enemy) => {
+      this.handleWeaponHit(projectile, enemy);
+    });
+
     this.events.on('xpchange', ({ level, xp, threshold }) => this.hud.updateXp(level, xp, threshold));
+    this.events.on('levelup', () => this.unlockNextWeapon());
 
     this.input.keyboard.on('keydown-ESC', () => {
       this.scene.pause();
       this.scene.launch('PauseScene');
     });
+  }
 
+  handleWeaponHit(projectile, enemy) {
+    if (!projectile.active || !enemy.active) return;
+
+    const type = projectile.getData('weaponType');
+    if (type === 'holyWaterBottle' || type === 'holyWaterZone' || type === 'flamePillar') return;
+
+    const hitEnemies = projectile.getData('hitEnemies');
+    if (hitEnemies?.has(enemy)) return;
+
+    enemy.takeDamage(projectile.getData('damage'));
+
+    if (hitEnemies) {
+      hitEnemies.add(enemy);
+    }
+
+    const pierce = projectile.getData('pierce');
+    if (typeof pierce === 'number') {
+      projectile.setData('pierce', pierce - 1);
+      if (pierce - 1 <= 0) {
+        this.releaseProjectileFromWeapon(projectile);
+      }
+    }
+  }
+
+  releaseProjectileFromWeapon(projectile) {
+    this.weapons.forEach((weapon) => {
+      if (weapon.projectilePool.active.has(projectile)) {
+        weapon.releaseProjectile(projectile);
+      }
+    });
+  }
+
+  unlockNextWeapon() {
+    const next = this.pendingWeapons.shift();
+    if (!next) return;
+    this.weapons.push(next());
   }
 
   handleEnemyDeath(enemy) {
@@ -99,6 +154,11 @@ export default class GameScene extends Phaser.Scene {
     this.enemies.children.iterate((enemy) => {
       if (!enemy?.active) return;
       enemy.chase(this.player, time);
+    });
+
+    this.weapons.forEach((weapon) => {
+      weapon.tryFire(time);
+      weapon.update(time, delta);
     });
 
     this.updateMovement(delta);
