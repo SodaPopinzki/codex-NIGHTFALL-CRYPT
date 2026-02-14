@@ -49,12 +49,17 @@ export default class BossManager {
       .setDepth(160)
       .setScrollFactor(0)
       .setVisible(false);
-    const fill = this.scene.add.rectangle((width * 0.5) - (barWidth / 2), y, barWidth, barHeight, 0xb71f2e, 1)
+    const fillDark = this.scene.add.rectangle((width * 0.5) - (barWidth / 2), y, barWidth, barHeight, 0x8f1124, 1)
       .setOrigin(0, 0.5)
       .setDepth(161)
       .setScrollFactor(0)
       .setVisible(false);
-    return { border, fill, width: barWidth };
+    const fillBright = this.scene.add.rectangle((width * 0.5) - (barWidth / 2), y - 3, barWidth, barHeight * 0.45, 0xe85469, 0.8)
+      .setOrigin(0, 0.5)
+      .setDepth(162)
+      .setScrollFactor(0)
+      .setVisible(false);
+    return { border, fillDark, fillBright, width: barWidth };
   }
 
   update(elapsedSeconds, time, delta) {
@@ -77,6 +82,7 @@ export default class BossManager {
 
   showWarning() {
     this.scene.cameras.main.flash(220, 180, 0, 0, false);
+    this.scene.sound.play('sfx_boss_warning');
     this.warningText.setVisible(true).setAlpha(1);
     this.scene.tweens.add({
       targets: this.warningText,
@@ -117,6 +123,7 @@ export default class BossManager {
 
     boss.takeDamage = (amount) => {
       const hp = boss.getData('hp') - amount;
+      this.scene.vfx?.onBossHit();
       boss.setData('hp', hp);
       boss.setTintFill(0xffffff);
       this.scene.time.delayedCall(70, () => boss.active && boss.clearTint());
@@ -134,7 +141,8 @@ export default class BossManager {
     this.activeBoss = boss;
     this.bossNameText.setText(bossData.name).setVisible(true);
     this.healthBar.border.setVisible(true);
-    this.healthBar.fill.setVisible(true);
+    this.healthBar.fillDark.setVisible(true);
+    this.healthBar.fillBright.setVisible(true);
   }
 
   createBossData(type, appearanceIndex) {
@@ -276,7 +284,8 @@ export default class BossManager {
     this.bossesDefeated += 1;
     this.activeBoss = null;
     this.healthBar.border.setVisible(false);
-    this.healthBar.fill.setVisible(false);
+    this.healthBar.fillDark.setVisible(false);
+    this.healthBar.fillBright.setVisible(false);
     this.bossNameText.setVisible(false);
 
     this.scene.enemies.children.iterate((enemy) => {
@@ -285,6 +294,8 @@ export default class BossManager {
       }
     });
 
+    this.scene.sound.play('sfx_death');
+    this.scene.vfx?.playBossDeath(boss.x, boss.y, boss.getData('color'));
     this.spawnTreasureChest(boss.x, boss.y);
     boss.destroyBoss();
     this.onBossDeath?.();
@@ -333,7 +344,9 @@ export default class BossManager {
     const hp = this.activeBoss.getData('hp');
     const maxHp = this.activeBoss.getData('maxHp');
     const ratio = Phaser.Math.Clamp(hp / maxHp, 0, 1);
-    this.healthBar.fill.width = this.healthBar.width * ratio;
+    const width = this.healthBar.width * ratio;
+    this.healthBar.fillDark.width = width;
+    this.healthBar.fillBright.width = width;
   }
 
   getSpawnPointInFacingDirection() {
@@ -367,10 +380,15 @@ export default class BossManager {
     return key;
   }
 
+
+  isBossIncoming(elapsedSeconds) {
+    return this.schedule.some((entry) => !entry.spawned && elapsedSeconds >= entry.atSeconds - GAME_CONFIG.bosses.warningSeconds);
+  }
   handleResize(gameSize) {
     this.warningText.setPosition(gameSize.width * 0.5, gameSize.height * 0.38);
     this.bossNameText.setPosition(gameSize.width * 0.5, GAME_CONFIG.bosses.healthBar.y - 24);
     this.healthBar.border.setPosition(gameSize.width * 0.5, GAME_CONFIG.bosses.healthBar.y);
-    this.healthBar.fill.setPosition((gameSize.width * 0.5) - (this.healthBar.width / 2), GAME_CONFIG.bosses.healthBar.y);
+    this.healthBar.fillDark.setPosition((gameSize.width * 0.5) - (this.healthBar.width / 2), GAME_CONFIG.bosses.healthBar.y);
+    this.healthBar.fillBright.setPosition((gameSize.width * 0.5) - (this.healthBar.width / 2), GAME_CONFIG.bosses.healthBar.y - 3);
   }
 }

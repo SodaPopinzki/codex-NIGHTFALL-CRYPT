@@ -88,10 +88,11 @@ export default class HUD {
     this.evolutionReadyText.setText(`Evolve Ready: ${readyEvolutionNames.join(', ')}`);
   }
 
-  updateTimer(totalSeconds) {
+  updateTimer(totalSeconds, bossWarning = false) {
     const mins = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
     const secs = String(Math.floor(totalSeconds % 60)).padStart(2, '0');
     this.timerText.setText(`${mins}:${secs}`);
+    this.timerText.setColor(bossWarning ? '#ff5e66' : '#f6ecff');
   }
 
   updateKills(kills) {
