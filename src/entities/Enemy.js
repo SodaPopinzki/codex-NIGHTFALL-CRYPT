@@ -36,11 +36,12 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   configure(typeStats) {
+    const statMult = this.scene.enemyStatMultiplier ?? 1;
     this.typeKey = typeStats.key;
-    this.hp = typeStats.hp;
-    this.maxHp = typeStats.hp;
-    this.speed = typeStats.speed;
-    this.damage = typeStats.damage;
+    this.hp = Math.ceil(typeStats.hp * statMult);
+    this.maxHp = Math.ceil(typeStats.hp * statMult);
+    this.speed = typeStats.speed * statMult;
+    this.damage = Math.ceil(typeStats.damage * statMult);
     this.xpValue = typeStats.xp;
     this.knockbackResist = typeStats.knockbackResist ?? 0;
 

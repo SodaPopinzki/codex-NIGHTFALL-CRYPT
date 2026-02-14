@@ -108,4 +108,13 @@ export const GAME_CONFIG = {
     pickupRadius: 180,
     magneticSpeed: 280,
   },
+  meta: {
+    version: 'v1.0',
+    bonuses: {
+      firstBloodDamageBonus: 0.05,
+      survivorBonusHealth: 10,
+      collectorPickupRadiusBonus: 0.15,
+      hardModeEnemyMultiplier: 1.5,
+    },
+  },
 };

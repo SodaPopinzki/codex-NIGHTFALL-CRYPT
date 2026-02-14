@@ -3,6 +3,8 @@ import BootScene from './scenes/BootScene';
 import MenuScene from './scenes/MenuScene';
 import GameScene from './scenes/GameScene';
 import PauseScene from './scenes/PauseScene';
+import ArmoryScene from './scenes/ArmoryScene';
+import RecordsScene from './scenes/RecordsScene';
 import LevelUpScene from './scenes/LevelUpScene';
 import GameOverScene from './scenes/GameOverScene';
 
@@ -31,6 +33,8 @@ const config = {
     MenuScene,
     GameScene,
     PauseScene,
+    ArmoryScene,
+    RecordsScene,
     LevelUpScene,
     GameOverScene,
   ],

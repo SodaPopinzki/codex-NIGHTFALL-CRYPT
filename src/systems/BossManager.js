@@ -147,13 +147,14 @@ export default class BossManager {
 
   createBossData(type, appearanceIndex) {
     const defs = GAME_CONFIG.bosses.types;
+    const mult = this.scene.enemyStatMultiplier ?? 1;
     if (type === 'boneDragon') {
       const cfg = defs.boneDragon;
       return {
         type,
         name: cfg.name,
-        hp: cfg.baseHp + (cfg.hpPerAppearance * appearanceIndex),
-        speed: cfg.speed,
+        hp: Math.ceil((cfg.baseHp + (cfg.hpPerAppearance * appearanceIndex)) * mult),
+        speed: cfg.speed * mult,
         width: cfg.width,
         height: cfg.height,
         color: cfg.color,
@@ -165,8 +166,8 @@ export default class BossManager {
       return {
         type,
         name: cfg.name,
-        hp: cfg.baseHp + (cfg.hpPerAppearance * appearanceIndex),
-        speed: cfg.dashSpeed,
+        hp: Math.ceil((cfg.baseHp + (cfg.hpPerAppearance * appearanceIndex)) * mult),
+        speed: cfg.dashSpeed * mult,
         width: cfg.width,
         height: cfg.height,
         color: cfg.color,
@@ -177,8 +178,8 @@ export default class BossManager {
     return {
       type,
       name: cfg.name,
-      hp: cfg.hp,
-      speed: cfg.speed,
+      hp: Math.ceil(cfg.hp * mult),
+      speed: cfg.speed * mult,
       width: cfg.width,
       height: cfg.height,
       color: cfg.color,
@@ -206,13 +207,13 @@ export default class BossManager {
       const forward = this.velocityAsDirection(boss.body.velocity);
       const angleDiff = Math.abs(Phaser.Math.Angle.Wrap(forward.angle() - toPlayer.angle()));
       const withinCone = toPlayer.length() < 180 && angleDiff <= 0.65;
-      if (withinCone && this.player.takeDamage(cfg.fireBreathDamage)) this.scene.events.emit('playerhit');
+      if (withinCone && this.player.takeDamage(this.scaleDamage(cfg.fireBreathDamage))) this.scene.events.emit('playerhit');
     }
 
     if (time >= boss.getData('nextTailSwipeAt')) {
       boss.setData('nextTailSwipeAt', time + cfg.tailSwipeCooldownMs);
       const distance = Phaser.Math.Distance.Between(boss.x, boss.y, this.player.x, this.player.y);
-      if (distance <= cfg.tailSwipeRadius && this.player.takeDamage(cfg.tailSwipeDamage)) this.scene.events.emit('playerhit');
+      if (distance <= cfg.tailSwipeRadius && this.player.takeDamage(this.scaleDamage(cfg.tailSwipeDamage))) this.scene.events.emit('playerhit');
     }
   }
 
@@ -231,7 +232,7 @@ export default class BossManager {
       boss.setData('nextLifestealAt', time + cfg.lifestealCooldownMs);
       const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
       boss.setPosition(this.player.x + (Math.cos(angle) * 40), this.player.y + (Math.sin(angle) * 40));
-      if (this.player.takeDamage(cfg.lifestealDamage)) this.scene.events.emit('playerhit');
+      if (this.player.takeDamage(this.scaleDamage(cfg.lifestealDamage))) this.scene.events.emit('playerhit');
       boss.setData('hp', Math.min(boss.getData('maxHp'), boss.getData('hp') + cfg.lifestealHeal));
     }
 
@@ -257,7 +258,7 @@ export default class BossManager {
     if (this.scene.time.now - this.lastContactTick >= GAME_CONFIG.bosses.contactTickMs) {
       this.lastContactTick = this.scene.time.now;
       const distance = Phaser.Math.Distance.Between(boss.x, boss.y, this.player.x, this.player.y);
-      if (distance <= 64 && this.player.takeDamage((cfg.contactDamagePerSecond * GAME_CONFIG.bosses.contactTickMs) / 1000)) {
+      if (distance <= 64 && this.player.takeDamage(this.scaleDamage((cfg.contactDamagePerSecond * GAME_CONFIG.bosses.contactTickMs) / 1000))) {
         this.scene.events.emit('playerhit');
       }
     }
@@ -270,6 +271,10 @@ export default class BossManager {
         enemy.speed = (enemy.getData('baseSpeed') ?? enemy.speed) * (1 + cfg.auraSpeedBoost);
       }
     });
+  }
+
+  scaleDamage(baseDamage) {
+    return baseDamage * (this.scene.enemyStatMultiplier ?? 1);
   }
 
   spawnMinionBat() {
