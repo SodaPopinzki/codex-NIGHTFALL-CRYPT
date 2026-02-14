@@ -1,5 +1,6 @@
 import { GAME_CONFIG } from '../config/GameConfig';
 import { PASSIVE_UPGRADES, WEAPON_CONFIG } from '../config/WeaponConfig';
+import { EVOLUTION_CONFIG, EVOLVED_WEAPON_CONFIG } from '../config/EvolutionConfig';
 import Player from '../entities/Player';
 import Enemy from '../entities/Enemy';
 import ObjectPool from '../utils/ObjectPool';
@@ -15,6 +16,10 @@ import GarlicAura from '../weapons/GarlicAura';
 import BoneShield from '../weapons/BoneShield';
 import SilverDagger from '../weapons/SilverDagger';
 import ArcaneOrb from '../weapons/ArcaneOrb';
+import SacredFlood from '../weapons/SacredFlood';
+import InfernoLash from '../weapons/InfernoLash';
+import PurificationNova from '../weapons/PurificationNova';
+import NecroStorm from '../weapons/NecroStorm';
 
 export default class GameScene extends Phaser.Scene {
   constructor() {
@@ -106,6 +111,38 @@ export default class GameScene extends Phaser.Scene {
         iconColor: 0xa64dff,
         description: 'Slow orb that phases through all enemies.',
       },
+      {
+        id: 'sacredFlood',
+        classRef: SacredFlood,
+        config: EVOLVED_WEAPON_CONFIG.sacredFlood,
+        iconColor: 0x4f93ff,
+        description: 'Massive sanctified wave sweeps the whole screen.',
+        isEvolved: true,
+      },
+      {
+        id: 'infernoLash',
+        classRef: InfernoLash,
+        config: EVOLVED_WEAPON_CONFIG.infernoLash,
+        iconColor: 0xff5b2e,
+        description: 'Whip lash leaves burning trails in its wake.',
+        isEvolved: true,
+      },
+      {
+        id: 'purificationNova',
+        classRef: PurificationNova,
+        config: EVOLVED_WEAPON_CONFIG.purificationNova,
+        iconColor: 0xd9ecff,
+        description: 'Silver nova ring erupts outward every 5 seconds.',
+        isEvolved: true,
+      },
+      {
+        id: 'necroStorm',
+        classRef: NecroStorm,
+        config: EVOLVED_WEAPON_CONFIG.necroStorm,
+        iconColor: 0xefefff,
+        description: 'Orbiting skulls fire arcane bolts at enemies.',
+        isEvolved: true,
+      },
     ];
     this.passiveCatalog = [
       { ...PASSIVE_UPGRADES.maxHealth, iconColor: 0xd74f5f },
@@ -121,6 +158,7 @@ export default class GameScene extends Phaser.Scene {
     this.hud.updateHealth(this.player.health, this.player.maxHealth);
     this.hud.updateXp(this.xpManager.level, this.xpManager.currentXp, this.xpManager.threshold);
     this.hud.updateKills(this.kills);
+    this.updateEvolutionHud();
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D');
@@ -156,6 +194,9 @@ export default class GameScene extends Phaser.Scene {
       || type === 'boneShield'
       || type === 'silverDagger'
       || type === 'arcaneOrb'
+      || type === 'infernoLashTrail'
+      || type === 'purificationNova'
+      || type === 'necroStormSkull'
     ) return;
 
     const hitEnemies = projectile.getData('hitEnemies');
@@ -188,21 +229,63 @@ export default class GameScene extends Phaser.Scene {
     return this.weaponCatalog.find((entry) => entry.id === id);
   }
 
-  addWeapon(id) {
+  addWeapon(id, { level = 1 } = {}) {
     if (this.weaponState.has(id)) return;
 
     const definition = this.getWeaponDefinition(id);
     if (!definition) return;
 
     const weapon = new definition.classRef(this, this.player, definition.config);
-    weapon.setLevel(1);
+    weapon.setLevel(level);
     this.weapons.push(weapon);
-    this.weaponState.set(id, { level: 1, weapon });
+    this.weaponState.set(id, { level, weapon, isEvolved: Boolean(definition.isEvolved) });
+  }
+
+  removeWeapon(id) {
+    const state = this.weaponState.get(id);
+    if (!state) return;
+
+    state.weapon.destroy();
+    this.weapons = this.weapons.filter((weapon) => weapon !== state.weapon);
+    this.weaponState.delete(id);
+  }
+
+  getReadyEvolutions() {
+    return EVOLUTION_CONFIG.filter((evolution) => {
+      const [weaponA, weaponB] = evolution.requires;
+      const stateA = this.weaponState.get(weaponA);
+      const stateB = this.weaponState.get(weaponB);
+
+      return Boolean(
+        stateA && stateB
+        && stateA.level >= 8
+        && stateB.level >= 8
+        && !this.weaponState.has(evolution.evolvedWeaponId),
+      );
+    });
   }
 
   getLevelUpChoices(count = 3) {
+    const readyEvolutions = this.getReadyEvolutions().map((evolution) => {
+      const [weaponAId, weaponBId] = evolution.requires;
+      const weaponA = this.getWeaponDefinition(weaponAId);
+      const weaponB = this.getWeaponDefinition(weaponBId);
+      const evolved = this.getWeaponDefinition(evolution.evolvedWeaponId);
+      return {
+        id: evolution.id,
+        type: 'evolution',
+        evolution,
+        name: evolution.name,
+        sourceWeapons: [weaponA?.config.name ?? weaponAId, weaponB?.config.name ?? weaponBId],
+        resultWeapon: evolved?.config.name ?? evolution.name,
+        description: evolution.description,
+        level: 8,
+        iconColor: evolved?.iconColor ?? 0xffdf6e,
+      };
+    });
+
     const weaponChoices = this.weaponCatalog
-      .filter((entry) => (this.weaponState.get(entry.id)?.level ?? 0) < 8)
+      .filter((entry) => !entry.isEvolved && (this.weaponState.get(entry.id)?.level ?? 0) < 8)
       .map((entry) => {
         const level = this.weaponState.get(entry.id)?.level ?? 0;
         return {
@@ -224,21 +307,38 @@ export default class GameScene extends Phaser.Scene {
       iconColor: entry.iconColor,
     }));
 
+    const reserved = readyEvolutions.slice(0, count);
+    const remaining = count - reserved.length;
     const pool = Phaser.Utils.Array.Shuffle([...weaponChoices, ...passiveChoices]);
-    return pool.slice(0, count);
+    return [...reserved, ...pool.slice(0, remaining)];
+  }
+
+  updateEvolutionHud() {
+    const ready = this.getReadyEvolutions().map((evolution) => evolution.name);
+    this.hud.updateEvolutionReady(ready);
   }
 
   applyLevelUpChoice(choice) {
     if (!choice) return;
 
+    if (choice.type === 'evolution') {
+      const evolution = choice.evolution;
+      evolution.requires.forEach((weaponId) => this.removeWeapon(weaponId));
+      this.addWeapon(evolution.evolvedWeaponId);
+      this.cameras.main.flash(300, 255, 226, 120, false);
+      this.updateEvolutionHud();
+      return;
+    }
+
     if (choice.type === 'weapon') {
       const state = this.weaponState.get(choice.id);
       if (!state) {
         this.addWeapon(choice.id);
-      } else if (state.level < 8) {
+      } else if (state.level < 8 && !state.isEvolved) {
         state.level += 1;
         state.weapon.setLevel(state.level);
       }
+      this.updateEvolutionHud();
       return;
     }
 
