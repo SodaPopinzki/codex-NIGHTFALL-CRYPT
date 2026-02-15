@@ -45,7 +45,12 @@ function createDefaultMeta() {
 }
 
 function save(meta) {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(meta));
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(meta));
+  } catch (_error) {
+    // Some browsers/privacy modes block persistent storage.
+    // Failing silently keeps gameplay running without meta-progression persistence.
+  }
 }
 
 export function loadMetaProgression() {
