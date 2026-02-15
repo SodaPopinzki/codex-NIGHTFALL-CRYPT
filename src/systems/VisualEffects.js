@@ -33,6 +33,8 @@ export default class VisualEffects {
       .setScrollFactor(0)
       .setDepth(220);
 
+    this.dustEmitZone = new Phaser.Geom.Rectangle(0, 0, scene.scale.width, scene.scale.height);
+
     this.dustEmitter = scene.add.particles(0, 0, PARTICLE_KEY, {
       x: { min: 0, max: scene.scale.width },
       y: { min: 0, max: scene.scale.height },
@@ -44,7 +46,7 @@ export default class VisualEffects {
       speedX: { min: -4, max: 4 },
       speedY: { min: -2, max: 2 },
       tint: 0xd8d2c2,
-      emitZone: { type: 'random', source: new Phaser.Geom.Rectangle(0, 0, scene.scale.width, scene.scale.height) },
+      emitZone: { type: 'random', source: this.dustEmitZone },
     }).setDepth(20).setScrollFactor(0);
 
     this.nextLightningAt = 0;
@@ -66,7 +68,7 @@ export default class VisualEffects {
     this.flashOverlay.setSize(gameSize.width, gameSize.height);
     this.drawVignette(gameSize.width, gameSize.height);
     this.dustEmitter.setPosition(0, 0);
-    this.dustEmitter.emitZone.source.setSize(gameSize.width, gameSize.height);
+    this.dustEmitZone.setSize(gameSize.width, gameSize.height);
   }
 
   drawVignette(width, height) {
